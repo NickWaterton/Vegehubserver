@@ -6,7 +6,7 @@
 
 #see https://vegecloud.com/Documentation/HubConfigApi.phtml for protocol details
 
-# N Waterton 2nd May 2019 V2.0: async re-write to support firmware V3.9 which allows for vegehub config updates
+# N Waterton 27th May 2021 V2.0: async re-write to support firmware V3.9 which allows for vegehub config updates
 
 import logging
 from logging.handlers import RotatingFileHandler
