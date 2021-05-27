@@ -67,7 +67,7 @@ mosquitto_pub -h <broker> -t "/vegehub_config/F8F005AD7A0A/sensors/1/pull_up" -m
 
 When the vegehub next wakes up and reports data, it will update it's configuration with the changes.
 ```
-mosquitto_pub -h <broker> -t "/vegehub_config/F8F005AD7A0A" -m get_config
+mosquitto_pub -h <broker> -t "/vegehub_config/config" -m get_config
 ```
 Re-publishes the current configuration for all vegehubs.
 ```
@@ -77,7 +77,7 @@ requests the vegehub at MAC address F8F005AD7A0A to resend it's configuration at
 
 ## config.json
 The default config file is `config.json`. All settings will be downloaded and stored in this file (V 3.9 FW only).  
-Any updates made via the Web interface will be downloaded and stored in this file at the next scheduled wake up (or tiriggered event).  
+Any updates made via the Web interface will be downloaded and stored in this file at the next scheduled wake up (or triggered event).  
 
 The structure of the `config.json` file is:
 ```
