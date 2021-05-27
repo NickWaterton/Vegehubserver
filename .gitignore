@@ -1,0 +1,4 @@
+*.json
+test.py
+vegehubserver.py
+*.log
