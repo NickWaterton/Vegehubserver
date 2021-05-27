@@ -11,10 +11,11 @@ Python 3.8 Server to receive Vegehub data, and update configuration remotely
 * Receives data from all Vegehub FW versions
 * Example gateserver() included in file vegeserver2.py
 
-**Note:** Tested on python V 3.8, Ubuntu 20.04 only
+**Note:** Tested on python V 3.8, Ubuntu 20.04 only.  
+**Note:** This server is for use when your Vegehub is set to use a *custom server* with ip address and port specified. The server runs on the target ip and listens on the specified port.
 
 ## Dependancies
-Uses module aiohttp as webserver (pip install aiohttp)
+Uses module aiohttp as webserver (`pip install aiohttp`)
 
 ## Command line interface
 ```
