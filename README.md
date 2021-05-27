@@ -79,6 +79,12 @@ requests the vegehub at MAC address F8F005AD7A0A to resend it's configuration at
 The default config file is `config.json`. All settings will be downloaded and stored in this file (V 3.9 FW only).  
 Any updates made via the Web interface will be downloaded and stored in this file at the next scheduled wake up (or triggered event).  
 
+It is possible to manually edit this file. If you do so, and want the changes to be updated to your vegehub at the next wake up, you have to:
+* Find the section for your vegehub (stored by MAC address)
+* Update the settings you want changed
+* Change "who_updated" to 2
+* Change "updated" to the current UTC time in the format `2021-05-27T16:21:41Z`
+
 The structure of the `config.json` file is:
 ```
 // Vegehub JSON specification V 1.0 (current as of Firmware V3.9 May 2021)
