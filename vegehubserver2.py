@@ -200,6 +200,21 @@ class vegehubserver():
         '''
         id = [i.get(x) for x in ['api_key', 'id'] if i.get(x) ]
         return id[0] if id else None
+        
+    def get_channel_id(self, data):
+        '''
+        gets hub id from data update
+        V3.0 hubs used to send 'channel_id', but since FW V3.9 now only sends 'key' which is 'api_key'
+        if neither of these have a value, try to get the MAC address or name from hub ip address
+        if all else fails return hub ip address
+        '''
+        id = [data.get(x) for x in ['channel_id', 'key'] if data.get(x) ]
+        if not id:
+            mac = self.get_mac(self.remote_host)
+            if mac and mac != self.remote_host:
+                name = self.settings[mac]['hub']['name']
+                return name if name else mac
+        return id[0] if id else self.remote_host
     
     def now(self):
         '''
@@ -289,8 +304,12 @@ class vegehubserver():
         '''
         override this to process your own data in a super class
         '''
-        pass
-      
+        channel = self.get_channel_id(post_json)
+        if 'updates' in post_json.keys():
+            for update in post_json['updates']:
+                for k, v in update.items():
+                    self.publish(k, v, channel)
+        
     def publish(self, topic, msg, hub_id=None):
         if self.mqttc:
             topic = '{}{}{}'.format(self.brokerFeedback, '{}/'.format(hub_id) if hub_id else '', topic)
@@ -375,21 +394,6 @@ class gateserver(vegehubserver):
         Vmin = 5.5
         bat_percent = int(((bat_volt - Vmin)/ (Vmax-Vmin))* 100)
         return str(min(100,max(0,bat_percent)))
-        
-    def get_channel_id(self, data):
-        '''
-        gets hub id from data update
-        V3.0 hubs used to send 'channel_id', but since FW V3.9 now only sends 'key' which is 'api_key'
-        if neither of these have a value, try to get the MAC address or name from hub ip address
-        if all else fails return hub ip address
-        '''
-        id = [data.get(x) for x in ['channel_id', 'key'] if data.get(x) ]
-        if not id:
-            mac = self.get_mac(self.remote_host)
-            if mac and mac != self.remote_host:
-                name = self.settings[mac]['hub']['name']
-                return name if name else mac
-        return id[0] if id else self.remote_host
         
     def format_date_time(self,date_string):
         date_time =  dt.datetime.now() if not date_string else dt.datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')+self.tz_offset
@@ -494,7 +498,7 @@ def main():
     global log
     import argparse
     parser = argparse.ArgumentParser(description='Message handler for Vegehub')
-    parser.add_argument('server_port', nargs='*', action="store", type=int, default=8060, help='http server port (default: %(default)s)')
+    parser.add_argument('server_port', nargs='*', action="store", type=int, default=8060, help='http server port list (default: %(default)s)')
     parser.add_argument('-cf','--config', action="store", default='config.json', help='config file (used for all configurations) (default: %(default)s)')
     #parser.add_argument('-cid','--client_id', action="store", default=None, help='optional MQTT CLIENT ID (default: %(default)s)')
     parser.add_argument('-b','--broker', action="store", default=None, help='mqtt broker to publish sensor data to. (default: %(default)s)')
