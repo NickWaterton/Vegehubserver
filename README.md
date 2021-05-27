@@ -16,6 +16,7 @@ Python 3.8 Server to receive Vegehub data, and update configuration remotely
 
 ## Dependancies
 Uses module aiohttp as webserver (`pip install aiohttp`)
+Optionally install paho-mqtt to use the MQTT interface (`pip install paho-mqtt`)
 
 ## Command line interface
 ```
