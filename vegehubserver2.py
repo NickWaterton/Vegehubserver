@@ -345,11 +345,14 @@ class gateserver(vegehubserver):
     channel 4 is light sensor   set periodic, send full report, power sensor 1 second before report
     
     test unit:
-    V3.9 Fw
+    Configuration (V3.9 Firmware)
+    sensor - brown is ground, blue is signal. Sensor is NO when gate is closed. ie 0 = OPEN 3.3V = CLOSED
+    vegehub is on http://192.168.100.127
+    server is 192.168.100.113:8061
     no "send battry info" checkbox (always sent?)
     channel is 'test'
     api key is 'test'
-    channel 1 is gate interrupt, trigger both, send full report DISABLED (or the channel does not work V3.0 f/w), continual power off, pull up resistor enabled
+    channel 1 is gate interrupt, trigger both, send full report DISABLED (or the channel does not work V3.9 f/w), continual power off, pull up resistor enabled
     channel 2 is gate periodic, sample mode, send full report, pullup disabled
     channel 3 unused leave in sample mode
     channel 4 is light sensor set periodic, send full report, power sensor 1 second before report
@@ -366,13 +369,16 @@ class gateserver(vegehubserver):
         self.IR_offset = 0.67   #offset created by IR lights from camera
         super().__init__(webport, self.log, arg)
         
-    async def process_update(self, post_json):    
+    async def process_update(self, post_json):
+        '''
+        Override vegehubserver method
+        '''
         self.hub_id = self.get_channel_id(post_json)
         self.publish("status", "online")
         updates = post_json.get('updates')
         if updates:
+            self.decode_gate(updates)   #process all updates for gate, as we are only interested in the first and last update
             for update in updates:
-                self.decode_gate(update)
                 self.decode_light(update)
                 self.decode_battery(update)
         else:
@@ -408,28 +414,44 @@ class gateserver(vegehubserver):
         lux = (math.pow(10,max(volts - IR_offset, 0))-1) * 10    #sort of - not really
         return round(lux,2)
         
-    def decode_gate(self, update):
-        gate = None
-        gate1 = update.get('field1')  #interrupt triggered
-        gate2 = update.get('field2')  #periodic update
-        gate3 = update.get('field3')  #interrupt triggered (replacement for channel 1 as that now seems to be dodgy)
-        ts = self.format_date_time(update.get('created_at'))
-        
-        if gate1 is not None:
-            source='sensor'
-            gate = gate1
-        if gate3 is not None:
-            source='sensor'
-            gate = gate3
-        if gate2 is not None:
-            source='periodic'
-            gate = gate2
+    def decode_gate(self, updates):
+        '''
+        Process all updates for gate, we are only interested in the last update for the gate
+        We can ignore the rest at we only want the final state.
+        Sensor is NO when gate is closed. ie 0 = OPEN 3.3V = CLOSED
+        With V 3.9FW, the way the sensors trigger is:
+        Initial trigger gets reported immediately.
+        Subesquent triggers are stored, and finally sent about 20 seconds later as a series
+        (I assume this is to prevent rapid connections/disconnections)
+        This means we are only interested in the last gate event in the update - as this is the current State
+        '''
+        if not isinstance(updates, list): #make sure it's a list...
+            updates = [updates]
+        gate_state = None
+        for update in updates:
+            gate = None
+            gate1 = update.get('field1')  #interrupt triggered
+            gate2 = update.get('field2')  #periodic update
+            gate3 = update.get('field3')  #interrupt triggered (replacement for channel 1 as that now seems to be dodgy)
+            ts = self.format_date_time(update.get('created_at'))
             
-        if gate is not None:
-            gate = 'CLOSED' if gate > 1.0 else 'OPEN'
-            self.log.info('Gate is {}({}) at:{}'.format(gate,source,ts))    
-            self.publish(source+"/gate", gate)
-            self.publish(source+"/gate_last_update", ts)
+            if gate1 is not None:
+                source='sensor'
+                gate = gate1
+            if gate3 is not None:
+                source='sensor'
+                gate = gate3
+            if gate2 is not None:
+                source='periodic'
+                gate = gate2
+            
+            if gate is not None:
+                gate_state= ('CLOSED' if gate > 1.0 else 'OPEN', source, ts)
+        
+        if gate_state:
+            self.log.info('Gate is {}({}) at:{}'.format(gate_state[0],gate_state[1],gate_state[2]))    
+            self.publish(gate_state[1]+"/gate", gate_state[0])
+            self.publish(gate_state[1]+"/gate_last_update", gate_state[2])
             
     def decode_light(self, update):
         light = update.get('field4')
