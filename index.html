@@ -1,0 +1,101 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <!-- when using the mode "code", it's important to specify charset utf-8 -->
+    <meta charset="utf-8">
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/jsoneditor/9.5.0/jsoneditor.min.css" rel="stylesheet" type="text/css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsoneditor/9.5.0/jsoneditor.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+</head>
+<body>
+    <div id="wrapper" class="ace_editor" style="width: 100%; height: 400px; display: table; font-size: 24px;">Vegehub Configuration Editor<span id="version"></span>
+        <div style="display: table-row">
+            <div id="jsoneditor" style="width: 50%; height: 100%; display: table-cell; font-size: 12px;"></div>
+            <div id="jsonspec" style="height: 100%; display: table-cell;"></div>
+        </div>
+        <div class="ace_editor" style="display: table-row">
+            <button type="button" class='btn btn-success action' id="update_button" onclick='saveValues();'>Update</button>
+            <button type="button" class='btn btn-success action' id="reload_button" onclick='loadValues();'>Reload</button>
+            Message: <span class="ace_editor" id='apiresponse'></span>
+        </div>
+    </div>
+    <script>
+        //version
+        getversion()
+        //buttons
+        const up_btn = document.getElementById("update_button")
+        //read only fields
+        const read_only = ["mac", "updated", "who_updated", "current_ip_addr", "firmware_version", "model", "server_url", "wifi_version", "slot"]
+        //create the specification window
+        const spec_container = document.getElementById("jsonspec")
+        const spec_options = {mode: "ace/mode/json", readOnly: true}
+        const spec = ace.edit("jsonspec", spec_options);
+        //spec.setTheme("ace/theme/chrome");
+        //spec.setTheme("ace/theme/jsoneditor"); //not working
+        loadSpec()
+        // create the editor
+        const container = document.getElementById("jsoneditor")
+        const options = {modes: ["form", "preview"], name: "Vegehubs", onChange: edited, onEditable: check_edit, onEvent: evt_update, onModeChange: evt_update}
+        const editor = new JSONEditor(container, options)
+        loadValues()
+        
+        function getversion () {
+          $.get('/api/getversion', function( data ) {
+            //console.log("Vegehub Configuration Editor V", data)
+            $('#version').html(" V"+data);
+          })
+        }
+        
+        // load spec
+        function loadSpec () {
+          $.get('/api/loadspec', function( data ) {
+            //console.log(data)
+            spec.setValue(data);
+            spec.gotoLine(1);
+          })
+        }
+        
+        function check_edit (node) {
+          var val = {"field": false, "value":true}
+          if (node) {
+            if (read_only.includes(node.field)) return false
+            return val
+          }
+          return false
+        }
+        
+        function edited () {
+          //enable update button
+          console.log('enabling button')
+          up_btn.disabled = false;
+          $('#apiresponse').html("Updates pending");
+        }
+        
+        function evt_update (obj, evt) {
+          spec.resize()
+        }
+
+        // set json
+        function loadValues () {
+          $.getJSON('/api/loadjson', function( data ) {
+            editor.set(data)
+            up_btn.disabled = true;
+            $('#apiresponse').html("");
+          })
+        }
+          
+        // get json
+        function saveValues () {
+          console.log('saving values')
+          up_btn.disabled = true;
+          var values = editor.getText()
+          $.post('/api/updatejson', values, function (data) {
+            console.log(data);
+            $('#apiresponse').html(data);
+          });
+        }
+    </script>
+</body>
+</html>

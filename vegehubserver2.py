@@ -7,6 +7,7 @@
 #see https://vegecloud.com/Documentation/HubConfigApi.phtml for protocol details
 
 # N Waterton 27th May 2021 V2.0: async re-write to support firmware V3.9 which allows for vegehub config updates
+# N Waterton 9th June 2021 V2.1: Added interactive webserver editor.
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -24,7 +25,7 @@ import datetime as dt
 import asyncio
 from aiohttp import web
 
-__VERSION__ = __version__ = '2.0'
+__VERSION__ = __version__ = '2.1'
 
 class vegehubserver():
 
@@ -225,6 +226,36 @@ class vegehubserver():
         
     def start_web(self):
         routes = web.RouteTableDef()
+        
+        @routes.get('/')
+        async def index(request):
+            self.log.debug('loading index.html')
+            return web.FileResponse('./index.html')
+            
+        @routes.get('/api/{command}')
+        async def api(request):
+            command = request.match_info['command']
+            if command == 'loadspec':
+                self.log.debug('sending spec.json')
+                return web.FileResponse('./spec.json', headers={"Content-Type": "text/plain"})
+            elif command == 'loadjson':
+                self.log.debug('sending json to editor: {}'.format(self.settings))
+                return web.json_response(self.settings)
+            elif command == 'getversion':
+                self.log.debug('sending version {}'.format(self.__version__))
+                return web.Response(text=self.__version__)
+            raise web.HTTPBadRequest(reason='bad api call {}'.format(str(request.rel_url)))
+            
+        @routes.post('/api/updatejson')
+        async def updatejson(request):
+            self.log.debug('received request to update json from editor')
+            if request.can_read_body:
+                post_json = await request.json()
+                self.log.info('received: {}'.format(post_json))
+                self.log.debug(pprint(post_json))
+                self.check_update(post_json)
+                return web.Response(text="Updated")
+            raise web.HTTPBadRequest(reason='bad api call {}'.format(str(request.rel_url)))
             
         @routes.post('/')
         async def recieved_update(request):
@@ -259,6 +290,25 @@ class vegehubserver():
         for webport in self.webport:
             self.log.info('starting api WEB Server V{} on port {}'.format(self.__version__, webport))
             self.web_task.append(self.loop.create_task(web._run_app(self.app, host='0.0.0.0', port=webport, print=None, access_log=self.log)))
+            
+    def check_update(self, post_json):
+        '''
+        compare an update from the json editor to save settings, and decide if a value was updated or not
+        if so, update "updated" and 'who_updated" for that vegehub
+        '''
+        updated = False
+        for mac, value in self.settings.copy().items():
+            if post_json[mac] != value:
+                self.log.info('Updating settings for: {}'.format(mac))
+                self.settings[mac] = post_json[mac]
+                self.settings[mac]["updated"] = self.now()
+                self.settings[mac]["who_updated"] = 2
+                updated = True
+        if updated:
+            self.log.info('Saving Updates')
+            self.write_settings()
+        else:
+            self.log.info('No settings changed')
         
     async def have_settings(self, post_json):
         '''
@@ -291,9 +341,11 @@ class vegehubserver():
         with open(self.config_file, 'w') as f:
             f.write(pprint(self.settings))
             
-    def load_settings(self):
+    def load_settings(self, filename=None):
         try:
-            with open(self.config_file, 'r') as f:
+            if not filename:
+                filename = self.config_file
+            with open(filename, 'r') as f:
                 settings = json.loads(f.read())
             return settings
         except Exception as e:
@@ -332,16 +384,16 @@ class vegehubserver():
             
 class gateserver(vegehubserver):
     '''
-    Configuration (V3.0 Firmware)
+    Configuration (V3.9 Firmware)
     sensor - red is ground, black is signal, green unused. Sensor is NO when gate is closed. ie 0 = OPEN 3.3V = CLOSED
-    vegehub is on http://192.168.100.126 (new is on 127)
+    vegehub is on http://192.168.100.133 (new is on 127)
     server is 192.168.100.113:8060
     send battery info checked.
     channel is 'gate'
     api key is 'gate'
     channel 1  used for ground only , leave in sample mode
     channel 2 is gate periodic, sample mode, send full report
-    channel 3 is gate interrupt, trigger both, send full report DISABLED (or the channel does not work V3.0 f/w), continual power off, pull up resistor enabled
+    channel 3 is gate interrupt, trigger both, send full report DISABLED (or the channel does not work V3.9 f/w), continual power off, pull up resistor enabled
     channel 4 is light sensor   set periodic, send full report, power sensor 1 second before report
     
     test unit:
