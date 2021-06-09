@@ -78,7 +78,7 @@ mosquitto_pub -h <broker> -t "/vegehub_config/F8F005AD7A0A" -m refresh_config
 ```
 requests the vegehub at MAC address F8F005AD7A0A to resend it's configuration at the next wake up.
 
-## web server
+## Web Server
 ![web server](webserver.png)
 By pointing your web browser to `<ip address>:<port>` where `<ip address>` is the address of the server and `<port>` is the port number you selected to run the server on,
 you will access the built in configuration editor.  
