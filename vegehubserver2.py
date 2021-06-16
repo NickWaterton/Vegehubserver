@@ -8,6 +8,7 @@
 
 # N Waterton 27th May 2021 V2.0: async re-write to support firmware V3.9 which allows for vegehub config updates
 # N Waterton 9th June 2021 V2.1: Added interactive webserver editor.
+# N Waterton 15th June 2021 V2.2: minor updates, removed duplicate ace editor, added optional schema check.
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -25,7 +26,7 @@ import datetime as dt
 import asyncio
 from aiohttp import web
 
-__VERSION__ = __version__ = '2.1'
+__VERSION__ = __version__ = '2.2'
 
 class vegehubserver():
 
@@ -244,6 +245,9 @@ class vegehubserver():
             elif command == 'getversion':
                 self.log.debug('sending version {}'.format(self.__version__))
                 return web.Response(text=self.__version__)
+            elif command == 'getschema':
+                self.log.debug('sending vegehub_json_schema.json')
+                return web.FileResponse('./vegehub_json_schema.json', headers={"Content-Type": "text/plain"})
             raise web.HTTPBadRequest(reason='bad api call {}'.format(str(request.rel_url)))
             
         @routes.post('/api/updatejson')

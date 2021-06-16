@@ -6,16 +6,17 @@
 
     <link href="https://cdnjs.cloudflare.com/ajax/libs/jsoneditor/9.5.0/jsoneditor.min.css" rel="stylesheet" type="text/css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsoneditor/9.5.0/jsoneditor.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
 </head>
 <body>
     <div id="wrapper" class="ace_editor" style="width: 100%; height: 400px; display: table; font-size: 24px;">Vegehub Configuration Editor<span id="version"></span>
         <div style="display: table-row">
             <div id="jsoneditor" style="width: 50%; height: 100%; display: table-cell; font-size: 12px;"></div>
-            <div id="jsonspec" style="height: 100%; display: table-cell;"></div>
+            <div id="jsonspec" style="height: 100%; border: 1px solid blue; display: table-cell;"></div>
         </div>
         <div class="ace_editor" style="display: table-row">
+            <input type="checkbox" id="enable_schema" onclick='enableschema();' checked>
+            <label for="enable_schema">Syntax check </label>
             <button type="button" class='btn btn-success action' id="update_button" onclick='saveValues();'>Update</button>
             <button type="button" class='btn btn-success action' id="reload_button" onclick='loadValues();'>Reload</button>
             Message: <span class="ace_editor" id='apiresponse'></span>
@@ -24,13 +25,15 @@
     <script>
         //version
         getversion()
+        //use json schema or not
+        var schema = document.getElementById("enable_schema").checked
         //buttons
         const up_btn = document.getElementById("update_button")
         //read only fields
         const read_only = ["mac", "updated", "who_updated", "current_ip_addr", "firmware_version", "model", "server_url", "wifi_version", "slot"]
         //create the specification window
-        const spec_container = document.getElementById("jsonspec")
         const spec_options = {mode: "ace/mode/json", readOnly: true}
+        const ace = JSONEditor.ace
         const spec = ace.edit("jsonspec", spec_options);
         //spec.setTheme("ace/theme/chrome");
         //spec.setTheme("ace/theme/jsoneditor"); //not working
@@ -39,7 +42,8 @@
         const container = document.getElementById("jsoneditor")
         const options = {modes: ["form", "preview"], name: "Vegehubs", onChange: edited, onEditable: check_edit, onEvent: evt_update, onModeChange: evt_update}
         const editor = new JSONEditor(container, options)
-        loadValues()
+        loadValues(false)
+        getschema()
         
         function getversion () {
           $.get('/api/getversion', function( data ) {
@@ -48,17 +52,33 @@
           })
         }
         
+        function getschema () {
+          if (schema) {
+            $.getJSON('/api/getschema', function( data ) {
+              //console.log('loading schema')
+              if (data) editor.setSchema(data)
+            })
+          }
+          else editor.setSchema(0)
+        }
+        
         // load spec
         function loadSpec () {
           $.get('/api/loadspec', function( data ) {
-            //console.log(data)
+            //console.log("spec", data)
             spec.setValue(data);
             spec.gotoLine(1);
           })
         }
         
+        function enableschema() {
+            schema = document.getElementById("enable_schema").checked
+            getschema()
+        }
+        
         function check_edit (node) {
           var val = {"field": false, "value":true}
+          //console.log("check_edit node: ", node)
           if (node) {
             if (read_only.includes(node.field)) return false
             return val
@@ -67,10 +87,29 @@
         }
         
         function edited () {
-          //enable update button
-          console.log('enabling button')
-          up_btn.disabled = false;
-          $('#apiresponse').html("Updates pending");
+          //validate json and enable update button
+          if (!schema) {
+            console.log('enabling update button')
+            up_btn.disabled = false;
+            $('#apiresponse').html("Updates pending");
+            return
+          }
+          editor.validate().then(function (val) {
+            if(!val.length) { //no errors
+              console.log('enabling update button')
+              up_btn.disabled = false;
+              $('#apiresponse').html("Updates pending");
+            }
+            else {
+              console.log(val)
+              up_btn.disabled = true;
+              $('#apiresponse').html("invalid Configuration");
+            }
+          }, function () {
+            console.log("validation failure")
+            up_btn.disabled = true;
+            $('#apiresponse').html("invalid Configuration");
+          });
         }
         
         function evt_update (obj, evt) {
@@ -78,9 +117,14 @@
         }
 
         // set json
-        function loadValues () {
+        function loadValues (update=true) {
           $.getJSON('/api/loadjson', function( data ) {
-            editor.set(data)
+            console.log("updating data: ", data)
+            if (update)
+              editor.update(data)
+            else
+              editor.set(data)
+            editor.refresh()
             up_btn.disabled = true;
             $('#apiresponse').html("");
           })
@@ -94,6 +138,7 @@
           $.post('/api/updatejson', values, function (data) {
             console.log(data);
             $('#apiresponse').html(data);
+            loadValues()
           });
         }
     </script>

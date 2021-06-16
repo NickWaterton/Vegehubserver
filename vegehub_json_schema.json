@@ -1,0 +1,645 @@
+{
+    "$schema": "https://json-schema.org/draft/2019-09/schema",
+    "$id": "https://json-schema.org/draft/2019-09/schema",
+    "title": "Vegehubs",
+    "description": "Vegehubs from Vegetronix",
+    "type": "object",
+    "patternProperties": {
+        "[0-9A-F]{12}": {
+            "$ref": "#/$defs/vegehub"
+        }
+    },
+    "$defs": {
+        "vegehub": {
+            "title": "Vegehub MAC Address",
+            "description": "MAC address of Vegehub, this cannot be changed",
+            "properties": {
+                "api_key": {
+                    "description": "unique key sent with data",
+                    "type": "string",
+                    "maxLength": 16
+                },
+                "id": {
+                    "description": "channel_id, used to be sent with data, but now replaced with api_key",
+                    "type": "string",
+                    "maxLength": 16
+                },
+                "route_key": {
+                    "description": "route key",
+                    "type": "string",
+                    "maxLength": 16
+                },
+                "mac": {
+                    "description": "MAC address of vegehub (read only)",
+                    "type": "string",
+                    "pattern": "[0-9A-F]{12}",
+                    "readOnly": true
+                },
+                "updated": {
+                    "description": "Date time of last update in javascript iso format",
+                    "type": "string",
+                    "anyOf": [
+                        {
+                            "pattern": "\\d{4}-\\d{1,2}-\\d{1,2} \\d{2}:\\d{2}:\\d{2}"
+                        },
+                        {
+                            "format": "date-time"
+                        }
+                    ],
+                    "readOnly": true
+                },
+                "who_updated": {
+                    "description": "0: needs updating by hub, 1: hub did last update, 2: web interface did last update.",
+                    "enum": [
+                        0,
+                        1,
+                        2
+                    ],
+                    "readOnly": true
+                },
+                "hub": {
+                    "description": "Hub Properties",
+                    "type": "object",
+                    "properties": {
+                        "model": {
+                            "description": "Hub model one of: VG-HUB1,VG-HUB4,VG-HUB4-RELAY,VG-SPRINKLER4,VG-SPRINKLER4-LATCH (read only)",
+                            "type": "string",
+                            "maxLength": 32,
+                            "readOnly": true
+                        },
+                        "firmware_version": {
+                            "description": "Firmware version string",
+                            "type": "string",
+                            "readOnly": true
+                        },
+                        "wifi_version": {
+                            "description": "WiFi version string",
+                            "type": "string",
+                            "readOnly": true
+                        },
+                        "utc_offset": {
+                            "description": "UTC offset in seconds",
+                            "type": "integer"
+                        },
+                        "name": {
+                            "description": "Name of Hub",
+                            "type": "string",
+                            "maxLength": 32
+                        },
+                        "sample_period": {
+                            "description": "Sample period in seconds (optional)",
+                            "type": "integer",
+                            "minimum": 300
+                        },
+                        "update_period": {
+                            "description": "Update period in seconds",
+                            "type": "integer",
+                            "minimum": 300
+                        },
+                        "blink_update": {
+                            "description": "LED flash on update: 0: don't blink, 1: blink",
+                            "enum": [
+                                0,
+                                1
+                            ]
+                        },
+                        "report_voltage": {
+                            "description": "Report battery Voltage: 0: don't report, 1: report voltage",
+                            "enum": [
+                                0,
+                                1
+                            ]
+                        },
+                        "server_url": {
+                            "description": "Server URL to send updates to (read only - as it's dangerous to change this!)",
+                            "type": "string",
+                            "format": "uri",
+                            "maxLength": 256,
+                            "readOnly": true
+                        },
+                        "static_ip_addr": {
+                            "description": "IP address if not using DHCP",
+                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "format": "ipv4"
+                                },
+                                {
+                                    "length": 0
+                                }
+                            ]
+                        },
+                        "dns": {
+                            "description": "DNS IP address if not using DHCP",
+                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "format": "ipv4"
+                                },
+                                {
+                                    "length": 0
+                                }
+                            ]
+                        },
+                        "subnet": {
+                            "description": "subnet if not using DHCP",
+                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "format": "ipv4"
+                                },
+                                {
+                                    "length": 0
+                                }
+                            ]
+                        },
+                        "gateway": {
+                            "description": "Gateway IP address if not using DHCP",
+                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "format": "ipv4"
+                                },
+                                {
+                                    "length": 0
+                                }
+                            ]
+                        },
+                        "current_ip_addr": {
+                            "description": "the currently assigned IP Address. Only the Hub can set or write this",
+                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "format": "ipv4"
+                                },
+                                {
+                                    "length": 0
+                                }
+                            ],
+                            "readOnly": true
+                        },
+                        "power_mode": {
+                            "description": "Hub is connected to 0: battery power, 1: wall power",
+                            "enum": [
+                                0,
+                                1
+                            ]
+                        }
+                    },
+                    "required": [
+                        "firmware_version",
+                        "wifi_version",
+                        "utc_offset",
+                        "name",
+                        "update_period",
+                        "blink_update",
+                        "report_voltage",
+                        "server_url",
+                        "current_ip_addr",
+                        "power_mode"
+                    ]
+                },
+                "sensors": {
+                    "description": "0 indexed array of hub sensors",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/sensors"
+                    }
+                },
+                "actuators": {
+                    "description": "0 indexed array of hub actuators",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/actuators"
+                    }
+                },
+                "schedules": {
+                    "description": "0 indexed array of schedules",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/schedules"
+                    }
+                },
+                "web_conditions": {
+                    "description": "0 indexed array of web conditions, length could be less than the number of actuators",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/web_conditions"
+                    }
+                },
+                "schedule_overrides": {
+                    "description": "0 indexed array of schedule overrides",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/schedule_overrides"
+                    }
+                }
+            },
+            "required": [
+                "api_key",
+                "mac",
+                "updated",
+                "who_updated",
+                "hub"
+            ]
+        },
+        "sensors": {
+            "description": "Sensor properties",
+            "type": "object",
+            "properties": {
+                "slot": {
+                    "description": "0 based sensor slot",
+                    "type": "integer",
+                    "minnimum": 0
+                },
+                "mode": {
+                    "description": "1: sensor, 0: edge",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "warm_up": {
+                    "description": "power up sensor before reading in seconds (default 0.9)",
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                },
+                "pull_up": {
+                    "description": "0: no pull up, 1: use pull up",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "always_power": {
+                    "description": "0: power to sensor not always on, 1: always on",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "update_on_trigger": {
+                    "description": "0: don't update, 1: update on trigger",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "edge": {
+                    "description": "0: raising, 1: falling, 2: both",
+                    "enum": [
+                        0,
+                        1,
+                        2
+                    ]
+                }
+            }
+        },
+        "actuators": {
+            "description": "relays, valves, pumps, etc",
+            "type": "object",
+            "properties": {
+                "name": {
+                    "description": "actuautor name",
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "slot": {
+                    "description": "0 based index of the physical actuator on the board",
+                    "type": "integer",
+                    "minnimum": 0,
+                    "readOnly": true
+                },
+                "type": {
+                    "description": "0: undefined, 1: relay, 2: valve, 3: pump",
+                    "enum": [
+                        0,
+                        1,
+                        2,
+                        3
+                    ]
+                },
+                "enabled": {
+                    "description": "0: disabled, 1: enabled",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "mode": {
+                    "description": "0: sensor conditional, 1: web conditional, 2: non-conditional (manual), 3: auto-generated web conditional",
+                    "enum": [
+                        0,
+                        1,
+                        2,
+                        3
+                    ]
+                },
+                "url": {
+                    "description": "URL",
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 256
+                },
+                "url_param": {
+                    "description": "URL parameters",
+                    "type": "string",
+                    "maxLength": 256
+                },
+                "turn_on": {
+                    "description": "0: OFF, 1: ON",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "time_dependent": {
+                    "description": "0: not dependent, 1: dependent (optional)",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "start_time": {
+                    "description": "start time string (optional)",
+                    "type": "string",
+                    "anyOf": [
+                        {
+                            "pattern": "\\d{4}-\\d{1,2}-\\d{1,2} \\d{2}:\\d{2}:\\d{2}"
+                        },
+                        {
+                            "format": "date-time"
+                        }
+                    ]
+                },
+                "end_time": {
+                    "description": "end time string (optional)",
+                    "type": "string",
+                    "anyOf": [
+                        {
+                            "pattern": "\\d{4}-\\d{1,2}-\\d{1,2} \\d{2}:\\d{2}:\\d{2}"
+                        },
+                        {
+                            "format": "date-time"
+                        }
+                    ]
+                },
+                "days_of_week": {
+                    "description": "0: never, 1: sun, 2: mon, 4: tue, etc.  127 every day. (optional)",
+                    "type": "integer",
+                    "maximum": 127,
+                    "minnimum": 0
+                },
+                "conditions": {
+                    "description": "Conditions",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/conditions"
+                    }
+                }
+            },
+            "required": [
+                "name",
+                "slot",
+                "type",
+                "enabled",
+                "mode",
+                "url",
+                "url_param",
+                "turn_on",
+                "days_of_week",
+                "conditions"
+            ]
+        },
+        "conditions": {
+            "description": "Conditions for activation of actuautor/relay",
+            "type": "object",
+            "sequence": {
+                "description": "operand order. 0 based",
+                "type": "integer",
+                "minnimum": 0
+            },
+            "slot": {
+                "description": "sensor channel slot",
+                "type": "integer",
+                "minnimum": 0
+            },
+            "operator": {
+                "description": "0: greater than, 1: less than, 2: inside, 3: outside, 4: true, 5: false",
+                "enum": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5
+                ]
+            },
+            "lower": {
+                "description": "lower threshold value (float)",
+                "type": "number",
+                "minnimum": 0
+            },
+            "upper": {
+                "description": "upper threshold value (float)",
+                "type": "number",
+                "minnimum": 0
+            },
+            "hysteresis": {
+                "description": "hysteresis value (float)",
+                "type": "number",
+                "minnimum": 0
+            },
+            "chain": {
+                "description": "0: none, 1: AND, 2: OR",
+                "enum": [
+                    0,
+                    1,
+                    2
+                ]
+            },
+            "required": [
+                "sequence",
+                "slot",
+                "operator",
+                "lower",
+                "upper",
+                "hysteresis",
+                "chain"
+            ]
+        },
+        "schedules": {
+            "description": "schedules",
+            "type": "object",
+            "properties": {
+                "name": {
+                    "description": "name",
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "idx": {
+                    "description": "0 based. index of the schedule",
+                    "type": "integer",
+                    "minnimum": 0
+                },
+                "enabled": {
+                    "description": "0: disabled, 1: enabled",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "mode": {
+                    "description": "0: calendar, 1: periodic",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "days_of_week": {
+                    "description": "0: never, 1: sun, 2: mon, 4: tue, etc.  127 every day",
+                    "type": "integer",
+                    "maximum": 127,
+                    "minnimum": 0
+                },
+                "period": {
+                    "description": "time between starts",
+                    "type": "integer",
+                    "minnimum": 1
+                },
+                "start_time": {
+                    "description": "start time",
+                    "type": "string",
+                    "anyOf": [
+                        {
+                            "pattern": "\\d{4}-\\d{1,2}-\\d{1,2} \\d{2}:\\d{2}:\\d{2}"
+                        },
+                        {
+                            "format": "date-time"
+                        }
+                    ]
+                },
+                "actions": {
+                    "description": "actions",
+                    "tyep": "array",
+                    "items": {
+                        "$ref": "#/$defs/actions"
+                    }
+                }
+            },
+            "required": [
+                "name",
+                "idx",
+                "enabled",
+                "mode",
+                "days_of_week",
+                "period",
+                "start_time",
+                "actions"
+            ]
+        },
+        "actions": {
+            "description": "actions",
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "0: disabled, 1: enabled",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "actuator_slot": {
+                    "description": "index of the physical actuator on the board",
+                    "type": "integer",
+                    "minnimmum": 0
+                },
+                "duration": {
+                    "description": "on time of actuator in whole minutes",
+                    "type": "integer",
+                    "minnimmum": 1
+                }
+            },
+            "required": [
+                "enabled",
+                "actuator_slot",
+                "duration"
+            ]
+        },
+        "web_conditions": {
+            "description": "length could be less than the number of actuators",
+            "type": "object",
+            "properties": {
+                "actuator_slot": {
+                    "description": "0 based, indicates the actuator it is tied to",
+                    "type": "integer",
+                    "minnimum": 0
+                },
+                "name": {
+                    "description": "name",
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "condition_key": {
+                    "description": "0 based. index of the schedule",
+                    "type": "string",
+                    "maxLength": 16
+                }
+            },
+            "required": [
+                "actuator_slot",
+                "name",
+                "condition_key"
+            ]
+        },
+        "schedule_overrides": {
+            "description": "schedule overrides",
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "unique identifier",
+                    "type": "integer"
+                },
+                "start_time": {
+                    "description": "override start time. The zero time of '0000-00-00 00:00:00' means immediate",
+                    "type": "string",
+                    "anyOf": [
+                        {
+                            "pattern": "\\d{4}-\\d{1,2}-\\d{1,2} \\d{2}:\\d{2}:\\d{2}"
+                        },
+                        {
+                            "format": "date-time"
+                        }
+                    ],
+                    "default": "0000-00-00 00:00:00"
+                },
+                "duration": {
+                    "description": "(seconds) how long to run actuator",
+                    "type": "integer",
+                    "minnimum": 1
+                },
+                "actuator_slot": {
+                    "description": "0 based index of the actuator",
+                    "type": "integer",
+                    "minnimum": 0
+                },
+                "action_type": {
+                    "description": "1: on, 2: off, 3: cancel",
+                    "enum": [
+                        1,
+                        2,
+                        3
+                    ]
+                }
+            },
+            "required": [
+                "id",
+                "start_time",
+                "duration",
+                "duration",
+                "actuator_slot",
+                "action_type"
+            ]
+        }
+    }
+}
