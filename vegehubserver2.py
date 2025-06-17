@@ -4,11 +4,15 @@
 # NOTE: if the server is down for any length of time (or does not respond), the vegehub will store readings,
 # then send them all at once when the server connection is re-established.
 
-#see https://vegecloud.com/Documentation/HubConfigApi.phtml for protocol details
+# This program is for Older V1 hubs.
+
+#see https://vegecloud.com/Documentation/HubConfigApi.phtml for protocol details (not valid anymore 17/6/25)
 
 # N Waterton 27th May 2021 V2.0: async re-write to support firmware V3.9 which allows for vegehub config updates
 # N Waterton 9th June 2021 V2.1: Added interactive webserver editor.
 # N Waterton 15th June 2021 V2.2: minor updates, removed duplicate ace editor, added optional schema check.
+# N Waterton 23rd feb 2023 V2.3: remove depreciated asyncio.get_event_loop()
+# N Waterton 17th June 2025 V2.4: Rework some processing logic and replace failed vegehub. Update to Python 3.10 and above
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -23,21 +27,18 @@ import os, sys, json, math
 import socket
 import signal
 import datetime as dt
+from enum import Enum
 import asyncio
 from aiohttp import web
 
-__VERSION__ = __version__ = '2.2'
+__VERSION__ = __version__ = '2.4'
 
 class vegehubserver():
 
     __VERSION__ = __version__ = __VERSION__
 
     def __init__(self, webport=None, log=None, arg=None):
-        if log:
-            self.log = log
-        else:
-            self.log = logging.getLogger("Vegehub.api")
-        self.loop = asyncio.get_event_loop()
+        self.log = log if log else logging.getLogger("Vegehub.api")
         self.webport = webport
         if not isinstance(self.webport, list):
             self.webport = [self.webport]
@@ -292,8 +293,9 @@ class vegehubserver():
         self.app = web.Application()
         self.app.add_routes(routes)
         for webport in self.webport:
-            self.log.info('starting api WEB Server V{} on port {}'.format(self.__version__, webport))
-            self.web_task.append(self.loop.create_task(web._run_app(self.app, host='0.0.0.0', port=webport, print=None, access_log=self.log)))
+            self.log.info('Starting api WEB Server V{} on port {}'.format(self.__version__, webport))
+            self.web_task.append(asyncio.create_task(web._run_app(self.app, host='0.0.0.0', port=webport, print=None, access_log=self.log)))
+            self.log.info('Started WEB Server on port {}'.format(webport))
             
     def check_update(self, post_json):
         '''
@@ -383,10 +385,21 @@ class vegehubserver():
         if self.web_task:
             for webtask in self.webtask:
                 if not web_task.done():
-                    web_task.cancel()    
+                    web_task.cancel()  
+
+class FIELD(Enum):
+    '''
+    define data fields here
+    '''
+    SENSOR          = 'field1'
+    PERIODIC        = 'field2'
+    SENSOR_BACKUP   = 'field3'
+    LIGHT           = 'field4'
+    BATTERY         = 'field5'
 
             
 class gateserver(vegehubserver):
+    
     '''
     Configuration (V3.9 Firmware)
     sensor - red is ground, black is signal, green unused. Sensor is NO when gate is closed. ie 0 = OPEN 3.3V = CLOSED
@@ -412,13 +425,25 @@ class gateserver(vegehubserver):
     channel 2 is gate periodic, sample mode, send full report, pullup disabled
     channel 3 unused leave in sample mode
     channel 4 is light sensor set periodic, send full report, power sensor 1 second before report
+    
+    NOTE: as of 16/6/2025 the first Vegehub is not working, and has been replaced by the test unit.
+    Working configuration is now:
+    Configuration (V3.9 Firmware)
+    sensor - red is ground, black is signal, green unused. Sensor is NO when gate is closed. ie 0 = OPEN 3.3V = CLOSED
+    Static IP address is configured as 192.168.100.127, DNS 192.168.100.1, netmask 255.255.255.0, gateway 192.168.100.1
+    vegehub is on http://192.168.100.127
+    server is 192.168.100.113:8060
+    no "send battry info" checkbox (always sent?)
+    channel is 'gate'
+    api key is 'gate'
+    channel 1 is gate interrupt, trigger both, send full report DISABLED (or the channel does not work V3.9 f/w), continual power off, pull up resistor enabled
+    channel 2 is gate periodic, sample mode, send full report, pullup disabled
+    channel 3 unused leave in sample mode
+    channel 4 is light sensor set periodic, send full report, power sensor 1 second before report
     '''
 
     def __init__(self, webport=None, log=None, arg=None):
-        if log:
-            self.log = log
-        else:
-            self.log = logging.getLogger("Vegehub.api.{}".format(__class__.__name__))
+        self.log = log if log else logging.getLogger("Vegehub.api.{}".format(__class__.__name__))
         self.arg = arg
         self.hub_id = None
         self.tz_offset = dt.datetime.now() - dt.datetime.utcnow()
@@ -428,12 +453,37 @@ class gateserver(vegehubserver):
     async def process_update(self, post_json):
         '''
         Override vegehubserver method
+        Example post_json data:
+        Gate OPEN:
+        {
+          "key": "gate",
+          "updates": [
+            {
+              "created_at": "2025-06-17 13:26:55",
+              "field1": 0.082,
+              "field5": 12.384
+            }
+          ]
+        }
+        Periodic update (Gate CLOSED):
+        {
+          "key": "gate",
+          "updates": [
+            {
+              "created_at": "2025-06-17 13:27:55",
+              "field2": 2.563,
+              "field3": 0.38,
+              "field4": 2.831,
+              "field5": 12.419
+            }
+          ]
+        }
         '''
-        self.hub_id = self.get_channel_id(post_json)
+        self.hub_id = self.get_channel_id(post_json)    #this is the "key" field in FW 3.9
         self.publish("status", "online")
         updates = post_json.get('updates')
         if updates:
-            self.decode_gate(updates)   #process all updates for gate, as we are only interested in the first and last update
+            self.decode_gate(updates)   #process all updates for gate, as we are only interested in the last update
             for update in updates:
                 self.decode_light(update)
                 self.decode_battery(update)
@@ -457,7 +507,13 @@ class gateserver(vegehubserver):
         bat_percent = int(((bat_volt - Vmin)/ (Vmax-Vmin))* 100)
         return str(min(100,max(0,bat_percent)))
         
-    def format_date_time(self,date_string):
+    def get_ts(self, update):
+        '''
+        return timestamp from update
+        '''
+        return self.format_date_time(update.get('created_at'))
+        
+    def format_date_time(self, date_string):
         date_time =  dt.datetime.now() if not date_string else dt.datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')+self.tz_offset
         return date_time.isoformat()
         
@@ -470,9 +526,17 @@ class gateserver(vegehubserver):
         lux = (math.pow(10,max(volts - IR_offset, 0))-1) * 10    #sort of - not really
         return round(lux,2)
         
+    def get_state(self, v):
+        '''
+        return Gate state OPEN or CLOSED as string.
+        If sensor is NO 0 = OPEN 3.3V = CLOSED
+        set threshold at 1.0V
+        '''
+        return 'CLOSED' if v > 1.0 else 'OPEN'
+        
     def decode_gate(self, updates):
         '''
-        Process all updates for gate, we are only interested in the last update for the gate
+        Process updates for gate, we are only interested in the last update for the gate
         We can ignore the rest at we only want the final state.
         Sensor is NO when gate is closed. ie 0 = OPEN 3.3V = CLOSED
         With V 3.9FW, the way the sensors trigger is:
@@ -481,37 +545,26 @@ class gateserver(vegehubserver):
         (I assume this is to prevent rapid connections/disconnections)
         This means we are only interested in the last gate event in the update - as this is the current State
         '''
-        if not isinstance(updates, list): #make sure it's a list...
-            updates = [updates]
-        gate_state = None
-        for update in updates:
-            gate = None
-            gate1 = update.get('field1')  #interrupt triggered
-            gate2 = update.get('field2')  #periodic update
-            gate3 = update.get('field3')  #interrupt triggered (replacement for channel 1 as that now seems to be dodgy)
-            ts = self.format_date_time(update.get('created_at'))
-            
-            if gate1 is not None:
-                source='sensor'
-                gate = gate1
-            if gate3 is not None:
-                source='sensor'
-                gate = gate3
-            if gate2 is not None:
-                source='periodic'
-                gate = gate2
-            
-            if gate is not None:
-                gate_state= ('CLOSED' if gate > 1.0 else 'OPEN', source, ts)
-        
+        update = updates[-1] if isinstance(updates, list) else updates
+        ts = self.get_ts(update)
+        match update:    #python 3.10+ only
+            case {FIELD.SENSOR.value: value}:
+                gate_state = (self.get_state(value), FIELD.SENSOR.name.lower(), ts, FIELD.SENSOR.value)
+            case {FIELD.PERIODIC.value: value}:
+                gate_state = (self.get_state(value), FIELD.PERIODIC.name.lower(), ts, FIELD.PERIODIC.value)
+            case {FIELD.SENSOR_BACKUP.value: value}:
+                gate_state = (self.get_state(value), FIELD.SENSOR.name.lower(), ts, FIELD.SENSOR_BACKUP.value)
+            case _:
+                gate_state = None
+
         if gate_state:
-            self.log.info('Gate is {}({}) at:{}'.format(gate_state[0],gate_state[1],gate_state[2]))    
+            self.log.info('Gate is {}({}) at:{} from: {}'.format(gate_state[0],gate_state[1],gate_state[2],gate_state[3]))    
             self.publish(gate_state[1]+"/gate", gate_state[0])
             self.publish(gate_state[1]+"/gate_last_update", gate_state[2])
             
     def decode_light(self, update):
-        light = update.get('field4')
-        ts = self.format_date_time(update.get('created_at'))
+        light = update.get(FIELD.LIGHT.value)
+        ts = self.get_ts(update)
         IR_offset = self.IR_offset
         if light is not None: #note, there is 0.67 - 1V offset due to IR lights at night
             light = min(light, 3.3) #limit max value
@@ -526,18 +579,18 @@ class gateserver(vegehubserver):
             elif  light <= IR_offset:
                 bright = 'Dark'
             lux = self.calculate_lux(light)
-            self.log.info('{} ({}V, {}lux) at:{}'.format(bright, light, lux, ts))
+            self.log.info('Light is {} ({}V, {}lux) at:{} from: {}'.format(bright, light, lux, ts, FIELD.LIGHT.value))
             self.publish("light", bright)
             self.publish("light_value", light)
             self.publish("light_lux", lux)
             self.publish("light_last_update", ts)
         
     def decode_battery(self, update):
-        battery = update.get('field5')
-        ts = self.format_date_time(update.get('created_at'))
+        battery = update.get(FIELD.BATTERY.value)
+        ts = self.get_ts(update)
         if battery is not None:
             bat_percent = self.battery_percent(battery)
-            self.log.info('battery is: {}% at:{}'.format(bat_percent,ts))
+            self.log.info('Battery is: {}% at:{} from: {}'.format(bat_percent, ts, FIELD.BATTERY.value))
             self.publish("battery_volts", battery)
             self.publish("battery", bat_percent)
             self.publish("battery_last_update", ts)
@@ -572,7 +625,7 @@ def setup_logger(logger_name, log_file, level=logging.DEBUG, console=False):
         print("Error in Logging setup: %s - do you have permission to write the log file??" % e)
         sys.exit(1)
     
-def main():
+async def main():
     global log
     import argparse
     parser = argparse.ArgumentParser(description='Message handler for Vegehub')
@@ -610,6 +663,10 @@ def main():
     log.info("Python Version: %s" % sys.version.replace('\n',''))
     log.info("Vegehub Server Version: %s" % __version__)
     
+    if not sys.version_info >= (3, 10):
+        log.fatal('python version 3.10 or above is required')
+        sys.exit(1)
+    
     #register signal handler
     signal.signal(signal.SIGTERM, sigterm_handler)
 
@@ -622,16 +679,16 @@ def main():
         arg.broker = None
 
     try:
-        loop = asyncio.get_event_loop()
         web = gateserver(webport=arg.server_port, arg=arg)
-        loop.run_forever()
+        while True:
+            await asyncio.sleep(1)
         
     except (KeyboardInterrupt, SystemExit):
         log.info("System exit Received - Exiting program")
         
     finally:
-        pass
+        log.info("Exited")
         
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
         
